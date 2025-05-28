@@ -1,4 +1,4 @@
-const { Order, OrderItem, Product } = require('../models');
+const { Order, OrderItem, Product ,User} = require('../models');
 
 // Place a new order
 exports.placeOrder = async (req, res) => {
@@ -38,19 +38,28 @@ exports.placeOrder = async (req, res) => {
 // Get all orders of the current user
 exports.getOrders = async (req, res) => {
   const userId = req.locals?.user?.id;
+  console.log("user id", userId);
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
+    // Fetch the user from the database
+    const user = await User.findByPk(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const whereCondition = user.role === 'admin' ? {} : { userId: user.id };
+
     const orders = await Order.findAll({
-      where: { userId },
+      where: whereCondition,
+      order: [['createdAt', 'DESC']], // 🔥 Order by newest
       include: [
         {
           model: OrderItem,
-          as: 'items',             // alias for order items in Order model
+          as: 'items',
           include: [
             {
               model: Product,
-              as: 'product',        // alias for product in OrderItem model
-              attributes: ['image'] // only get image field from product
+              as: 'product',
+              attributes: ['image']
             }
           ]
         }
@@ -142,7 +151,7 @@ exports.updateOrderStatus = async (req, res) => {
   }
 
   try {
-    const order = await Order.findOne({ where: { id: orderId, userId } });
+    const order = await Order.findOne({ where: { id: orderId } });
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
     }
